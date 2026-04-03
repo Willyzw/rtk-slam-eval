@@ -1,0 +1,6 @@
+numpy
+matplotlib
+pyproj
+scipy
+contextily
+pyyaml
