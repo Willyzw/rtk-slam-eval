@@ -17,30 +17,20 @@ def read_tum_trajectory(path):
 
 
 def read_ground_truth(path):
-    """Space-separated: ID easting northing height [env]. Skips # lines."""
+    """
+    CSV with header: point_id, easting, northing, height, env, timestamp.
+    Returns list of {id, position, env, timestamp}.
+    """
     pts = []
-    with open(path, encoding='utf-8') as f:
-        for line in f:
-            parts = line.strip().split()
-            if len(parts) >= 4 and not parts[0].startswith('#'):
-                pts.append({
-                    'id':       parts[0],
-                    'position': np.array([float(parts[1]), float(parts[2]), float(parts[3])]),
-                    'env':      parts[4] if len(parts) >= 5 else 'outdoor',
-                })
-    return pts
-
-
-def load_timestamps_csv(path):
-    """Returns [{point_id, timestamp}]. Deduplicates by first occurrence."""
-    rows, seen = [], set()
-    with open(path, newline='') as f:
+    with open(path, newline='', encoding='utf-8') as f:
         for row in csv.DictReader(f):
-            pid = row['point_id']
-            if pid not in seen:
-                seen.add(pid)
-                rows.append({'point_id': pid, 'timestamp': float(row['timestamp'])})
-    return rows
+            pts.append({
+                'id':        row['point_id'],
+                'position':  np.array([float(row['easting']), float(row['northing']), float(row['height'])]),
+                'env':       row.get('env', 'outdoor'),
+                'timestamp': float(row['timestamp']),
+            })
+    return pts
 
 
 def find_nearest_pose(traj_ts, traj_pos, target_ts, max_dt=2.0):

@@ -17,7 +17,7 @@ import numpy as np
 from pathlib import Path
 
 from coords  import convert_extracted_points_to_utm, convert_gnss_to_utm
-from readers import (read_tum_trajectory, read_ground_truth, load_timestamps_csv,
+from readers import (read_tum_trajectory, read_ground_truth,
                      find_nearest_pose, find_gnss_at_timestamps)
 from metrics import absolute_errors, se3_errors, gnss_errors
 
@@ -45,15 +45,13 @@ def discover():
 
 def check_inputs(method, seq_name):
     cfg   = _seq_config(seq_name)
-    dpath = TRAJ_DIR / ('fast_lio_sam' if method == 'rtk' else method) / seq_name
     if method == 'rtk':
         miss = [] if cfg['gnss_gt'].exists() else ['gnss_gt']
     else:
+        dpath = TRAJ_DIR / method / seq_name
         miss = [f for f in ['traj_offline.txt', 'enu_origin.json'] if not (dpath / f).exists()]
     if not cfg['gt'].exists():
         miss.append(cfg['gt'].name)
-    if not (GT_DIR / f'{seq_name}_timestamps.csv').exists():
-        miss.append('timestamps.csv')
     return miss
 
 
@@ -85,12 +83,13 @@ def evaluate_gnss(gnss_path, ts_rows, gt_by_id):
 
 def _run_sequence(method, seq_name):
     cfg      = _seq_config(seq_name)
-    ts_rows  = load_timestamps_csv(str(GT_DIR/f'{seq_name}_timestamps.csv'))
-    gt_by_id = {p['id']: p for p in read_ground_truth(str(cfg['gt']))}
-    dpath    = TRAJ_DIR / ('fast_lio_sam' if method == 'rtk' else method) / seq_name
-    origin   = json.loads((dpath/'enu_origin.json').read_text())
+    gt_pts   = read_ground_truth(str(cfg['gt']))
+    ts_rows  = [{'point_id': p['id'], 'timestamp': p['timestamp']} for p in gt_pts]
+    gt_by_id = {p['id']: p for p in gt_pts}
 
     if method != 'rtk':
+        dpath  = TRAJ_DIR / method / seq_name
+        origin = json.loads((dpath / 'enu_origin.json').read_text())
         assocs = evaluate_trajectory(str(dpath/'traj_offline.txt'), ts_rows, gt_by_id, origin)
         if assocs is None:
             return [('offline', None, 'trajectory evaluation failed')]
@@ -159,6 +158,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('--method')
     p.add_argument('--seq')
+    p.add_argument('--plot', action='store_true', help='Save per-sequence accuracy figures')
     args = p.parse_args()
 
     slam_methods, all_seqs, has_rtk = discover()
@@ -173,6 +173,11 @@ def main():
 
     if rows:
         print_table(rows)
+
+    if args.plot:
+        from plot import plot_all
+        plot_seqs = [args.seq] if args.seq else all_seqs
+        plot_all(slam_methods, plot_seqs, has_rtk)
 
 
 if __name__ == '__main__':

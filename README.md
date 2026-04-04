@@ -6,7 +6,7 @@ Evaluation scripts for the paper:
 > Wei Zhang, Vincent Ress, David Skuddis, Uwe Soergel, Norbert Haala  
 > Institute for Photogrammetry and Geoinformatics, University of Stuttgart
 
-[[Project Page]](https://rtk-slam-dataset.github.io/) · [[Dataset (HuggingFace)]](https://huggingface.co/datasets/Willyzw/rtk-slam-dataset)
+[[Project Page]](https://rtk-slam-dataset.github.io/) · [[Dataset]](https://huggingface.co/datasets/Willyzw/rtk-slam-dataset)
 
 ---
 
@@ -15,13 +15,14 @@ Evaluation scripts for the paper:
 ```
 rtk-slam-eval/
 ├── eval/
-│   ├── eval.py        # Batch evaluation script
-│   ├── readers.py     # File I/O and timestamp matching
-│   ├── metrics.py     # Error computation (absolute ATE, SE3-aligned ATE)
-│   └── coords.py      # Coordinate conversion (ENU → UTM)
+│   ├── eval.py                    # Batch evaluation script
+│   ├── readers.py                 # File I/O and timestamp matching
+│   ├── metrics.py                 # Error computation (absolute ATE, SE3-aligned ATE)
+│   ├── coords.py                  # Coordinate conversion (ENU → UTM)
+│   ├── plot.py                    # Per-sequence accuracy figures (--plot)
+│   └── transform_imu_to_base.py   # Helper: convert trajectory from IMU to base-center frame
 ├── ground_truth/
-│   ├── {sequence}.csv             # Surveyed checkpoint coordinates (UTM Zone 32N, ETRS89)
-│   └── {sequence}_timestamps.csv  # SLAM timestamps at each checkpoint
+│   └── {sequence}.csv             # Checkpoints: coordinates + SLAM timestamps (UTM Zone 32N, ETRS89)
 ├── calib/
 │   └── calib.yaml     # Sensor calibration (camera, LiDAR, GNSS offsets)
 ├── data/
@@ -32,7 +33,6 @@ rtk-slam-eval/
 │       ├── traj_offline.txt   # Offline/batch result (TUM format)
 │       ├── traj_online.txt    # Online/causal result (TUM format, optional)
 │       └── enu_origin.json    # ENU reference origin [lat, lon, alt]
-├── download_data.py   # Dataset download script
 └── requirements.txt
 ```
 
@@ -49,6 +49,9 @@ python eval/eval.py
 # One method or one sequence
 python eval/eval.py --method fast_lio_sam
 python eval/eval.py --seq stadtgarten_seq1
+
+# Save per-sequence accuracy figures to results/figures/
+python eval/eval.py --plot
 ```
 
 ---
@@ -69,27 +72,30 @@ trajectories/
 
 Re-run `python eval/eval.py` and the new method appears in the table automatically.
 
+### Trajectory frame
+
+Trajectories must be in the **local ENU frame**, with positions at the **base center**.
+
+If your SLAM output is expressed at the **IMU frame origin**, use the helper script to shift the positions:
+
+```bash
+python eval/transform_imu_to_base.py traj_imu.txt trajectories/my_method/seq1/traj_offline.txt
+```
+
 ---
 
 ## Ground Truth Format
 
-Checkpoint coordinates (`ground_truth/{sequence}.csv`):
+Each `ground_truth/{sequence}.csv` contains surveyed checkpoint coordinates and the SLAM timestamp at which each checkpoint was visited:
 
 ```
-# id  easting  northing  height  [env]
-4000   512672.397  5403255.195  254.648  outdoor
-MS001  512666.706  5403222.923  254.539  indoor
+point_id,easting,northing,height,env,timestamp
+4000,512672.397,5403255.195,254.648,outdoor,1764589650.123
+MS001,512666.706,5403222.923,254.539,indoor,1764589689.456
 ```
 
 Coordinate system: **UTM Zone 32N (ETRS89)**, matching the SAPOS RTK correction service.  
-The optional `env` column (`outdoor` / `transition` / `indoor`) is used for per-environment breakdown.
-
-Checkpoint timestamps (`ground_truth/{sequence}_timestamps.csv`):
-
-```
-point_id,timestamp
-4000,1764589650.123
-```
+The `env` column (`outdoor` / `transition` / `indoor`) is used for per-environment breakdown.
 
 ---
 
